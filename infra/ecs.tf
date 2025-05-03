@@ -1,4 +1,3 @@
-
 # ECS Task Definition
 resource "aws_ecs_task_definition" "flask_task" {
   family                   = "flask-devops-task"
@@ -11,13 +10,14 @@ resource "aws_ecs_task_definition" "flask_task" {
   container_definitions = jsonencode([
     {
       name  = "flask-container",
-      image = aws_ecr_repository.flask_app_repo.repository_url
+      image = aws_ecr_repository.flask_app_repo.repository_url,
       portMappings = [
         {
           containerPort = 5000
-          hostPort      = 5000
+          protocol      = "tcp"
         }
       ]
+
     }
   ])
 }
@@ -28,6 +28,7 @@ resource "aws_lb" "flask_alb" {
   load_balancer_type = "application"
   subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
   security_groups    = [aws_security_group.alb_sg.id]
+  internal           = false
 }
 
 resource "aws_lb_target_group" "flask_tg" {
@@ -36,12 +37,13 @@ resource "aws_lb_target_group" "flask_tg" {
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
+
   health_check {
     path                = "/"
     interval            = 30
-    timeout             = 5
+    timeout             = 10
     healthy_threshold   = 2
-    unhealthy_threshold = 2
+    unhealthy_threshold = 5
     matcher             = "200"
   }
 }
@@ -67,7 +69,7 @@ resource "aws_ecs_service" "flask_service" {
 
   network_configuration {
     subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-    security_groups  = [aws_security_group.alb_sg.id]
+    security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = true
   }
 
@@ -77,5 +79,30 @@ resource "aws_ecs_service" "flask_service" {
     container_port   = 5000
   }
 
+  deployment_controller {
+    type = "ECS"
+  }
+
+  health_check_grace_period_seconds = 60
+
   depends_on = [aws_lb_listener.flask_listener]
+}
+resource "aws_security_group" "ecs_sg" {
+  name        = "ecs-task-sg"
+  description = "Allow traffic from ALB"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port       = 5000
+    to_port         = 5000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id] # only allow from ALB
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
