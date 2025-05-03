@@ -1,2 +1,26 @@
-venv/
+# Python
 __pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+# Virtual Envs
+venv/
+.venv/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+crash.log
+*.backup
+
+# Docker
+*.tar
+*.img
+
+# VSCode
+.vscode/
